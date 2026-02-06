@@ -15,7 +15,7 @@ num-format = "0.4"
 postcard = { version = "1", features = ["use-std"] }
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }
-signal-hook = "0.3"
+signal-hook = "0.4"
 zerocopy = { version = "0.8", features = ["derive"] }
 zstd = "0.13"
 
