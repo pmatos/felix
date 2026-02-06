@@ -178,8 +178,7 @@ fn build_metadata(shm: &ShmReader, pid: i32) -> Result<SessionMetadata> {
 }
 
 fn hardware_concurrency() -> usize {
-    std::thread::available_parallelism()
-        .map_or(1, std::num::NonZeroUsize::get)
+    std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
 }
 
 // ---------------------------------------------------------------------------
