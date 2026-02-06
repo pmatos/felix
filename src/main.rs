@@ -179,8 +179,7 @@ fn build_metadata(shm: &ShmReader, pid: i32) -> Result<SessionMetadata> {
 
 fn hardware_concurrency() -> usize {
     std::thread::available_parallelism()
-        .map(std::num::NonZeroUsize::get)
-        .unwrap_or(1)
+        .map_or(1, std::num::NonZeroUsize::get)
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +268,7 @@ fn run_live_loop(
         let poll_timeout = if elapsed >= interval {
             Duration::ZERO
         } else {
-            EVENT_POLL_TIMEOUT.min(interval - elapsed)
+            EVENT_POLL_TIMEOUT.min(interval.checked_sub(elapsed).unwrap())
         };
 
         if event::poll(poll_timeout).context("failed to poll events")?
@@ -508,7 +507,7 @@ fn cmd_record(pid: i32, output: &Path, sample_period_ms: u64, duration_secs: u64
 #[allow(clippy::cast_precision_loss)]
 fn print_recording_status(elapsed: Duration, frames: u64, path: &Path) {
     let secs = elapsed.as_secs();
-    let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let size = std::fs::metadata(path).map_or(0, |m| m.len());
     eprintln!(
         "  [{secs}s] {frames} frames, {:.1} KB",
         size as f64 / 1024.0
