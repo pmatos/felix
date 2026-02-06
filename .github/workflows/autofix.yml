@@ -25,7 +25,7 @@ jobs:
 
       - run: cargo clippy --fix --allow-dirty --allow-staged -- -D warnings
 
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "style: auto-format and clippy fixes"
           branch: ${{ github.ref_name }}
