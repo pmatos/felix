@@ -12,6 +12,7 @@ cargo run -- live <pid> -r session.felixr    # Monitor + record
 cargo run -- replay session.felixr           # Replay a recording
 cargo run -- record <pid> -o session.felixr  # Headless recording
 cargo run -- watch                           # Auto-detect FEX processes
+cargo run -- pick                            # Pick a FEX process interactively
 cargo run -- export session.felixr -o out.csv # Export to CSV
 ```
 
@@ -51,7 +52,7 @@ src/
     theme.rs           # Colors, Unicode block characters
     replay_controls.rs # Playback speed, seek, progress bar
     panels/
-      header.rs        # Status bar (PID, FEX version, mode)
+      header.rs        # Status bar (PID, FEX version, type, head, size)
       jit_stats.rs     # Per-thread load bars + aggregate counters
       mem_stats.rs     # FEX memory breakdown
       histogram.rs     # Scrolling JIT load histogram

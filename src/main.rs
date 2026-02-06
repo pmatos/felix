@@ -9,7 +9,7 @@ mod recording;
 mod sampler;
 mod tui;
 
-use std::io::{self, Stdout, Write};
+use std::io::{self, BufRead, IsTerminal, Stdout, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -83,6 +83,13 @@ enum Commands {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Pick a running FEX process interactively
+    Pick {
+        #[arg(short, long, default_value = "1000")]
+        sample_period: u64,
+        #[arg(short, long)]
+        record: Option<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -106,6 +113,10 @@ fn main() -> Result<()> {
             record,
         } => cmd_watch(sample_period, record.as_deref()),
         Commands::Export { input, output } => cmd_export(&input, &output),
+        Commands::Pick {
+            sample_period,
+            record,
+        } => cmd_pick(sample_period, record.as_deref()),
     }
 }
 
@@ -174,6 +185,8 @@ fn build_metadata(shm: &ShmReader, pid: i32) -> Result<SessionMetadata> {
         cycle_counter_frequency: cycle_counter_frequency(),
         hardware_concurrency: hardware_concurrency(),
         recording_start: SystemTime::now(),
+        head: header.head,
+        size: header.size,
     })
 }
 
@@ -536,8 +549,10 @@ fn cmd_watch(sample_period_ms: u64, record_path: Option<&Path>) -> Result<()> {
     }
 }
 
-fn find_fex_process() -> Option<i32> {
-    let read_dir = std::fs::read_dir("/dev/shm").ok()?;
+fn find_all_fex_processes() -> Vec<i32> {
+    let Some(read_dir) = std::fs::read_dir("/dev/shm").ok() else {
+        return Vec::new();
+    };
     let mut candidates: Vec<i32> = Vec::new();
 
     for entry in read_dir.flatten() {
@@ -553,7 +568,191 @@ fn find_fex_process() -> Option<i32> {
     }
 
     candidates.sort_unstable();
-    candidates.last().copied()
+    candidates
+}
+
+fn find_fex_process() -> Option<i32> {
+    find_all_fex_processes().last().copied()
+}
+
+fn read_process_cmdline(pid: i32) -> String {
+    let path = format!("/proc/{pid}/cmdline");
+    std::fs::read(&path).map_or_else(
+        |_| String::new(),
+        |bytes| {
+            bytes
+                .split(|&b| b == 0)
+                .filter(|s| !s.is_empty())
+                .map(|s| String::from_utf8_lossy(s).into_owned())
+                .collect::<Vec<_>>()
+                .join(" ")
+        },
+    )
+}
+
+fn read_process_ppid(pid: i32) -> Option<i32> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // Format: pid (comm) state ppid ... — comm can contain ')' so find the last one
+    let after_comm = &stat[stat.rfind(')')? + 2..];
+    // Fields after comm: state ppid ...
+    after_comm.split_whitespace().nth(1)?.parse().ok()
+}
+
+// ---------------------------------------------------------------------------
+// Pick subcommand
+// ---------------------------------------------------------------------------
+
+fn cmd_pick(sample_period_ms: u64, record_path: Option<&Path>) -> Result<()> {
+    let pids = find_all_fex_processes();
+
+    if pids.is_empty() {
+        bail!("no running FEX processes found");
+    }
+
+    let color = io::stderr().is_terminal();
+
+    let pid = if pids.len() == 1 {
+        let pid = pids[0];
+        let cmdline = read_process_cmdline(pid);
+        if color {
+            eprintln!(
+                "Only one FEX process found: \x1b[1;32mPID {pid}\x1b[0m  {cmdline}"
+            );
+        } else {
+            eprintln!("Only one FEX process found: PID {pid}  {cmdline}");
+        }
+        pid
+    } else {
+        let ordered = print_process_tree(&pids, color);
+        prompt_selection(&ordered)?
+    };
+
+    cmd_live(pid, sample_period_ms, record_path)
+}
+
+fn print_process_tree(pids: &[i32], color: bool) -> Vec<i32> {
+    let pid_set: std::collections::HashSet<i32> = pids.iter().copied().collect();
+    let mut children_map: std::collections::HashMap<i32, Vec<i32>> =
+        std::collections::HashMap::new();
+    let mut roots = Vec::new();
+
+    for &pid in pids {
+        if let Some(ppid) = read_process_ppid(pid)
+            && pid_set.contains(&ppid)
+        {
+            children_map.entry(ppid).or_default().push(pid);
+        } else {
+            roots.push(pid);
+        }
+    }
+
+    for v in children_map.values_mut() {
+        v.sort_unstable();
+    }
+    roots.sort_unstable();
+
+    eprintln!("Running FEX processes:");
+    let mut ordered = Vec::new();
+    let mut counter = 0;
+
+    for &root in &roots {
+        print_tree_node(
+            root,
+            &children_map,
+            &mut ordered,
+            &mut counter,
+            "",
+            true,
+            false,
+            color,
+        );
+    }
+
+    ordered
+}
+
+#[allow(clippy::too_many_arguments)]
+fn print_tree_node(
+    pid: i32,
+    children_map: &std::collections::HashMap<i32, Vec<i32>>,
+    ordered: &mut Vec<i32>,
+    counter: &mut usize,
+    prefix: &str,
+    is_root: bool,
+    is_last: bool,
+    color: bool,
+) {
+    let idx = *counter;
+    *counter += 1;
+    ordered.push(pid);
+    let cmdline = read_process_cmdline(pid);
+
+    if is_root {
+        if color {
+            eprintln!(
+                "  \x1b[33m[{idx}]\x1b[0m \x1b[1;32mPID {pid}\x1b[0m  {cmdline}"
+            );
+        } else {
+            eprintln!("  [{idx}] PID {pid}  {cmdline}");
+        }
+    } else {
+        let connector = if is_last { "└── " } else { "├── " };
+        if color {
+            eprintln!(
+                "  {prefix}\x1b[2m{connector}\x1b[0m\x1b[33m[{idx}]\x1b[0m \x1b[36mPID {pid}\x1b[0m  {cmdline}"
+            );
+        } else {
+            eprintln!("  {prefix}{connector}[{idx}] PID {pid}  {cmdline}");
+        }
+    }
+
+    if let Some(kids) = children_map.get(&pid) {
+        let child_prefix = if !is_root && !is_last {
+            format!("{prefix}│   ")
+        } else {
+            format!("{prefix}    ")
+        };
+        for (i, &child) in kids.iter().enumerate() {
+            print_tree_node(
+                child,
+                children_map,
+                ordered,
+                counter,
+                &child_prefix,
+                false,
+                i == kids.len() - 1,
+                color,
+            );
+        }
+    }
+}
+
+fn prompt_selection(pids: &[i32]) -> Result<i32> {
+    let stdin = io::stdin();
+    let mut lines = stdin.lock().lines();
+
+    loop {
+        eprint!("Select process [0-{}] (q to quit): ", pids.len() - 1);
+        io::stderr().flush()?;
+
+        let Some(line) = lines.next() else {
+            bail!("unexpected end of input");
+        };
+        let line = line.context("failed to read from stdin")?;
+        let input = line.trim();
+
+        if input.eq_ignore_ascii_case("q") {
+            bail!("selection cancelled");
+        }
+
+        if let Ok(idx) = input.parse::<usize>()
+            && idx < pids.len()
+        {
+            return Ok(pids[idx]);
+        }
+
+        eprintln!("Invalid selection: {input}");
+    }
 }
 
 // ---------------------------------------------------------------------------

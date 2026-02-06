@@ -22,15 +22,15 @@ pub fn render(
 
     let text = if is_replay {
         format!(
-            "felix v{version} | REPLAY | FEX: {} | Type: {}",
-            metadata.fex_version, metadata.app_type,
+            "felix v{version} | REPLAY | FEX: {} | Type: {} | Head: {:#x} | Size: {:#x}",
+            metadata.fex_version, metadata.app_type, metadata.head, metadata.size,
         )
     } else {
         let sample_part = sample_period_ns
             .map_or_else(String::new, |ns| format!(" | Sample: {}ms", ns / 1_000_000));
         format!(
-            "felix v{version} | PID: {} | FEX: {} | Type: {}{sample_part}",
-            metadata.pid, metadata.fex_version, metadata.app_type,
+            "felix v{version} | PID: {} | FEX: {} | Type: {} | Head: {:#x} | Size: {:#x}{sample_part}",
+            metadata.pid, metadata.fex_version, metadata.app_type, metadata.head, metadata.size,
         )
     };
 

@@ -15,6 +15,10 @@ pub struct SessionMetadata {
     pub cycle_counter_frequency: u64,
     pub hardware_concurrency: usize,
     pub recording_start: SystemTime,
+    #[serde(default)]
+    pub head: u32,
+    #[serde(default)]
+    pub size: u32,
 }
 
 pub trait DataSource {

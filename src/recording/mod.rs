@@ -25,6 +25,8 @@ mod tests {
             cycle_counter_frequency: 1_000_000_000,
             hardware_concurrency: 8,
             recording_start: SystemTime::UNIX_EPOCH,
+            head: 0x40,
+            size: 0x1000,
         }
     }
 
