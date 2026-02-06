@@ -1,0 +1,31 @@
+name: Autofix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  autofix:
+    name: Format and fix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+
+      - run: cargo fmt
+
+      - run: cargo clippy --fix --allow-dirty --allow-staged -- -D warnings
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-format and clippy fixes"
+          branch: ${{ github.ref_name }}
