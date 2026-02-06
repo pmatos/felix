@@ -1,9 +1,9 @@
 [package]
-name = "flexf"
+name = "felix"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "flexf: Real-time profiler and recorder for FEX-Emu"
+description = "felix: Real-time profiler and recorder for FEX-Emu"
 
 [dependencies]
 anyhow = "1"

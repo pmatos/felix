@@ -5,9 +5,9 @@ use crate::datasource::SessionMetadata;
 use crate::sampler::accumulator::ComputedFrame;
 use crate::sampler::thread_stats::ThreadDelta;
 
-pub const MAGIC: [u8; 4] = *b"WTFR";
+pub const MAGIC: [u8; 4] = *b"FLXR";
 pub const FORMAT_VERSION: u8 = 1;
-pub const EOF_MARKER: [u8; 4] = *b"WEOF";
+pub const EOF_MARKER: [u8; 4] = *b"FEOF";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileHeader {

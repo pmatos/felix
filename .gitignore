@@ -1,5 +1,4 @@
 /target/
-/WTF
 *.ninja*
 CMakeCache.txt
 CMakeFiles/

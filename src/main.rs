@@ -42,7 +42,7 @@ const WATCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const HEADLESS_STATUS_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Parser)]
-#[command(name = "flexf", about = "flexf: FEX-Emu profiler and recorder")]
+#[command(name = "felix", about = "felix: FEX-Emu profiler and recorder")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

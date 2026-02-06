@@ -86,9 +86,9 @@ mod tests {
 
     #[test]
     fn round_trip_write_then_read() {
-        let dir = std::env::temp_dir().join("wtf_recording_test");
+        let dir = std::env::temp_dir().join("felix_recording_test");
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("test_recording.wtfr");
+        let path = dir.join("test_recording.felixr");
 
         let metadata = make_metadata();
         let frames: Vec<Frame> = (0..5).map(make_frame).collect();
@@ -193,9 +193,9 @@ mod tests {
 
     #[test]
     fn empty_recording_round_trip() {
-        let dir = std::env::temp_dir().join("wtf_recording_test_empty");
+        let dir = std::env::temp_dir().join("felix_recording_test_empty");
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("empty_recording.wtfr");
+        let path = dir.join("empty_recording.felixr");
 
         let metadata = make_metadata();
 

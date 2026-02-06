@@ -1,20 +1,18 @@
-# flexf
+# felix
 
 ## Overview
 
-flexf is a Rust/ratatui real-time profiling TUI for [FEX-Emu](https://github.com/FEX-Emu/FEX), an x86-on-ARM64 emulator. It attaches to a running FEX process by PID, reads profiling data from POSIX shared memory, and displays live JIT compilation statistics, memory usage, and load histograms. It also supports recording sessions to disk and replaying them with full playback controls.
-
-Rewritten from the original C++ implementation (preserved under `legacy/` for reference).
+felix is a Rust/ratatui real-time profiling TUI for [FEX-Emu](https://github.com/FEX-Emu/FEX), an x86-on-ARM64 emulator. It attaches to a running FEX process by PID, reads profiling data from POSIX shared memory, and displays live JIT compilation statistics, memory usage, and load histograms. It also supports recording sessions to disk and replaying them with full playback controls.
 
 ## Usage
 
 ```
-cargo run -- live <pid>                    # Monitor a live FEX process
-cargo run -- live <pid> -r session.wtfr    # Monitor + record
-cargo run -- replay session.wtfr           # Replay a recording
-cargo run -- record <pid> -o session.wtfr  # Headless recording
-cargo run -- watch                         # Auto-detect FEX processes
-cargo run -- export session.wtfr -o out.csv # Export to CSV
+cargo run -- live <pid>                      # Monitor a live FEX process
+cargo run -- live <pid> -r session.felixr    # Monitor + record
+cargo run -- replay session.felixr           # Replay a recording
+cargo run -- record <pid> -o session.felixr  # Headless recording
+cargo run -- watch                           # Auto-detect FEX processes
+cargo run -- export session.felixr -o out.csv # Export to CSV
 ```
 
 ## Build
