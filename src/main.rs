@@ -615,9 +615,7 @@ fn cmd_pick(sample_period_ms: u64, record_path: Option<&Path>) -> Result<()> {
         let pid = pids[0];
         let cmdline = read_process_cmdline(pid);
         if color {
-            eprintln!(
-                "Only one FEX process found: \x1b[1;32mPID {pid}\x1b[0m  {cmdline}"
-            );
+            eprintln!("Only one FEX process found: \x1b[1;32mPID {pid}\x1b[0m  {cmdline}");
         } else {
             eprintln!("Only one FEX process found: PID {pid}  {cmdline}");
         }
@@ -689,9 +687,7 @@ fn print_tree_node(
 
     if is_root {
         if color {
-            eprintln!(
-                "  \x1b[33m[{idx}]\x1b[0m \x1b[1;32mPID {pid}\x1b[0m  {cmdline}"
-            );
+            eprintln!("  \x1b[33m[{idx}]\x1b[0m \x1b[1;32mPID {pid}\x1b[0m  {cmdline}");
         } else {
             eprintln!("  [{idx}] PID {pid}  {cmdline}");
         }
