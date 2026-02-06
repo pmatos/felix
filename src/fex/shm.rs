@@ -225,6 +225,7 @@ unsafe fn volatile_copy_thread_stats(src: *const u8) -> ThreadStats {
     #[cfg(target_arch = "x86_64")]
     {
         let chunks = std::mem::size_of::<ThreadStats>() / std::mem::size_of::<u64>();
+        #[allow(clippy::cast_ptr_alignment)] // caller guarantees 16-byte alignment
         let s = src.cast::<u64>();
         let d = ptr::from_mut(&mut dest).cast::<u64>();
         for i in 0..chunks {
