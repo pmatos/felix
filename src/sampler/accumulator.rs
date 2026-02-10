@@ -11,6 +11,15 @@ const HIGH_SIGBUS_THRESHOLD: u64 = 5_000;
 const HIGH_SOFTFLOAT_THRESHOLD: u64 = 1_000_000;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CumulativeCountStats {
+    pub sigbus: u64,
+    pub smc: u64,
+    pub float_fallback: u64,
+    pub cache_miss: u64,
+    pub jit: u64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ThreadLoad {
     pub tid: u32,
     pub load_percent: f32,
@@ -46,6 +55,7 @@ pub struct ComputedFrame {
     pub thread_loads: Vec<ThreadLoad>,
     pub mem: MemSnapshot,
     pub histogram_entry: HistogramEntry,
+    pub cumulative: CumulativeCountStats,
 }
 
 pub struct Accumulator {
@@ -69,12 +79,14 @@ impl Accumulator {
         mem: &MemSnapshot,
         sample_period_ns: u64,
         total_jit_invocations: u64,
+        cumulative: CumulativeCountStats,
     ) -> ComputedFrame {
         let mut frame = ComputedFrame {
             sample_period_ns,
             threads_sampled: sample.threads_sampled,
             total_jit_invocations,
             mem: mem.clone(),
+            cumulative,
             ..ComputedFrame::default()
         };
 
@@ -180,7 +192,13 @@ mod tests {
     fn empty_sample_produces_zero_frame() {
         let acc = Accumulator::new(1_000_000_000.0, 4);
         let sample = make_sample(vec![]);
-        let frame = acc.compute_frame(&sample, &MemSnapshot::default(), 1_000_000_000, 0);
+        let frame = acc.compute_frame(
+            &sample,
+            &MemSnapshot::default(),
+            1_000_000_000,
+            0,
+            CumulativeCountStats::default(),
+        );
 
         assert_eq!(frame.threads_sampled, 0);
         assert_eq!(frame.total_jit_time, 0);
@@ -196,7 +214,13 @@ mod tests {
             ..ThreadDelta::default()
         };
         let sample = make_sample(vec![delta]);
-        let frame = acc.compute_frame(&sample, &MemSnapshot::default(), 1_000_000_000, 100);
+        let frame = acc.compute_frame(
+            &sample,
+            &MemSnapshot::default(),
+            1_000_000_000,
+            100,
+            CumulativeCountStats::default(),
+        );
 
         assert!((frame.fex_load_percent - 100.0).abs() < 0.01);
         assert_eq!(frame.thread_loads.len(), 1);
@@ -216,7 +240,13 @@ mod tests {
             ..ThreadDelta::default()
         };
         let sample = make_sample(vec![delta]);
-        let frame = acc.compute_frame(&sample, &MemSnapshot::default(), 1_000_000_000, 0);
+        let frame = acc.compute_frame(
+            &sample,
+            &MemSnapshot::default(),
+            1_000_000_000,
+            0,
+            CumulativeCountStats::default(),
+        );
 
         assert!(frame.histogram_entry.high_invalidation_or_smc);
         assert!(frame.histogram_entry.high_sigbus);
@@ -245,7 +275,13 @@ mod tests {
             },
         ];
         let sample = make_sample(deltas);
-        let frame = acc.compute_frame(&sample, &MemSnapshot::default(), 1_000_000_000, 0);
+        let frame = acc.compute_frame(
+            &sample,
+            &MemSnapshot::default(),
+            1_000_000_000,
+            0,
+            CumulativeCountStats::default(),
+        );
 
         assert_eq!(frame.thread_loads.len(), 2);
         assert_eq!(frame.thread_loads[0].tid, 1);
@@ -282,7 +318,13 @@ mod tests {
             },
         ];
         let sample = make_sample(deltas);
-        let frame = acc.compute_frame(&sample, &MemSnapshot::default(), 1_000_000_000, 500);
+        let frame = acc.compute_frame(
+            &sample,
+            &MemSnapshot::default(),
+            1_000_000_000,
+            500,
+            CumulativeCountStats::default(),
+        );
 
         assert_eq!(frame.total_jit_time, 300);
         assert_eq!(frame.total_signal_time, 150);
@@ -294,5 +336,31 @@ mod tests {
         assert_eq!(frame.total_cache_write_lock_time, 120);
         assert_eq!(frame.total_jit_count, 180);
         assert_eq!(frame.total_jit_invocations, 500);
+    }
+
+    #[test]
+    fn cumulative_stats_pass_through() {
+        let acc = Accumulator::new(1_000_000_000.0, 4);
+        let sample = make_sample(vec![]);
+        let cumulative = CumulativeCountStats {
+            sigbus: 100,
+            smc: 200,
+            float_fallback: 300,
+            cache_miss: 400,
+            jit: 500,
+        };
+        let frame = acc.compute_frame(
+            &sample,
+            &MemSnapshot::default(),
+            1_000_000_000,
+            0,
+            cumulative,
+        );
+
+        assert_eq!(frame.cumulative.sigbus, 100);
+        assert_eq!(frame.cumulative.smc, 200);
+        assert_eq!(frame.cumulative.float_fallback, 300);
+        assert_eq!(frame.cumulative.cache_miss, 400);
+        assert_eq!(frame.cumulative.jit, 500);
     }
 }

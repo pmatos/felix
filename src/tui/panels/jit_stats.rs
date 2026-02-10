@@ -128,6 +128,21 @@ fn render_aggregate_stats<'a>(data: &ComputedFrame, metadata: &SessionMetadata) 
     let total_invocations_fmt = data.total_jit_invocations.to_formatted_string(&Locale::en);
     let total_jit_time_all = data.total_jit_time + data.total_signal_time;
 
+    let cum = &data.cumulative;
+    let has_cumulative = cum.sigbus > 0
+        || cum.smc > 0
+        || cum.float_fallback > 0
+        || cum.cache_miss > 0
+        || cum.jit > 0;
+
+    let cum_suffix = |val: u64| -> String {
+        if has_cumulative {
+            format!("  [total: {}]", val.to_formatted_string(&Locale::en))
+        } else {
+            String::new()
+        }
+    };
+
     vec![
         Line::from(format!(
             "Total ({sample_period_ms} millisecond sample period):"
@@ -141,14 +156,23 @@ fn render_aggregate_stats<'a>(data: &ComputedFrame, metadata: &SessionMetadata) 
             signal_seconds * SCALE,
         )),
         Line::from(format!(
-            "     SIGBUS Cnt: {} ({sigbus_per_second:.2} per second)",
+            "     SIGBUS Cnt: {} ({sigbus_per_second:.2} per second){}",
             data.total_sigbus_count,
+            cum_suffix(cum.sigbus),
         )),
-        Line::from(format!("        SMC Cnt: {}", data.total_smc_count)),
-        Line::from(format!("  Softfloat Cnt: {softfloat_fmt}")),
         Line::from(format!(
-            "  CacheMiss Cnt: {} ({cache_miss_per_second:.2} per second) ({total_invocations_fmt} total JIT invocations)",
+            "        SMC Cnt: {}{}",
+            data.total_smc_count,
+            cum_suffix(cum.smc),
+        )),
+        Line::from(format!(
+            "  Softfloat Cnt: {softfloat_fmt}{}",
+            cum_suffix(cum.float_fallback),
+        )),
+        Line::from(format!(
+            "  CacheMiss Cnt: {} ({cache_miss_per_second:.2} per second) ({total_invocations_fmt} total JIT invocations){}",
             data.total_cache_miss_count,
+            cum_suffix(cum.cache_miss),
         )),
         Line::from(format!(
             "    $RDLck Time: {:.6} {SCALE_STR} ({rd_pct:.2} percent)",
@@ -159,8 +183,9 @@ fn render_aggregate_stats<'a>(data: &ComputedFrame, metadata: &SessionMetadata) 
             cache_write_lock_seconds * SCALE,
         )),
         Line::from(format!(
-            "        JIT Cnt: {} ({jit_cnt_per_second:.2} per second)",
+            "        JIT Cnt: {} ({jit_cnt_per_second:.2} per second){}",
             data.total_jit_count,
+            cum_suffix(cum.jit),
         )),
         Line::from(format!(
             "FEX JIT Load:    {:.6} (cycles: {total_jit_time_all})",

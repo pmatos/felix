@@ -31,7 +31,7 @@ use crate::fex::types::STATS_VERSION;
 use crate::recording::format::Frame;
 use crate::recording::reader::{RecordingReader, ReplaySource};
 use crate::recording::writer::RecordingWriter;
-use crate::sampler::accumulator::Accumulator;
+use crate::sampler::accumulator::{Accumulator, CumulativeCountStats};
 use crate::sampler::mem_stats::MemStatsWorker;
 use crate::sampler::thread_stats::ThreadSampler;
 use crate::tui::app::App;
@@ -287,7 +287,7 @@ fn run_live_loop(
             && let Event::Key(key) = event::read().context("failed to read event")?
             && key.kind == KeyEventKind::Press
         {
-            let action = handle_key(key.code, false);
+            let action = handle_key(key, false);
             handle_sample_period_action(&action, app);
             app.handle_action(&action);
         }
@@ -336,7 +336,24 @@ fn take_live_sample(
     *total_jit_invocations = total_jit_invocations
         .wrapping_add(sample.per_thread.iter().map(|d| d.jit_count).sum::<u64>());
 
-    let frame = accumulator.compute_frame(&sample, &mem, period_nanos, *total_jit_invocations);
+    let cumulative = CumulativeCountStats {
+        sigbus: raw_stats.iter().map(|s| s.sigbus_count).sum(),
+        smc: raw_stats.iter().map(|s| s.smc_count).sum(),
+        float_fallback: raw_stats.iter().map(|s| s.float_fallback_count).sum(),
+        cache_miss: raw_stats
+            .iter()
+            .map(|s| s.accumulated_cache_miss_count)
+            .sum(),
+        jit: raw_stats.iter().map(|s| s.accumulated_jit_count).sum(),
+    };
+
+    let frame = accumulator.compute_frame(
+        &sample,
+        &mem,
+        period_nanos,
+        *total_jit_invocations,
+        cumulative,
+    );
 
     if let Some(ref mut w) = *writer {
         let rec_frame = Frame {
@@ -393,7 +410,7 @@ fn run_replay_loop(
             && let Event::Key(key) = event::read().context("failed to read event")?
             && key.kind == KeyEventKind::Press
         {
-            let action = handle_key(key.code, true);
+            let action = handle_key(key, true);
             app.handle_action(&action);
         }
 
@@ -491,7 +508,24 @@ fn cmd_record(pid: i32, output: &Path, sample_period_ms: u64, duration_secs: u64
         total_jit_invocations = total_jit_invocations
             .wrapping_add(sample.per_thread.iter().map(|d| d.jit_count).sum::<u64>());
 
-        let frame = accumulator.compute_frame(&sample, &mem, period_nanos, total_jit_invocations);
+        let cumulative = CumulativeCountStats {
+            sigbus: raw_stats.iter().map(|s| s.sigbus_count).sum(),
+            smc: raw_stats.iter().map(|s| s.smc_count).sum(),
+            float_fallback: raw_stats.iter().map(|s| s.float_fallback_count).sum(),
+            cache_miss: raw_stats
+                .iter()
+                .map(|s| s.accumulated_cache_miss_count)
+                .sum(),
+            jit: raw_stats.iter().map(|s| s.accumulated_jit_count).sum(),
+        };
+
+        let frame = accumulator.compute_frame(
+            &sample,
+            &mem,
+            period_nanos,
+            total_jit_invocations,
+            cumulative,
+        );
 
         let rec_frame = Frame {
             computed: frame,
@@ -790,7 +824,9 @@ fn write_csv_header(out: &mut impl Write) -> Result<()> {
          mem_total_anon,mem_jit_code,mem_op_dispatcher,\
          mem_frontend,mem_cpu_backend,mem_lookup,mem_lookup_l1,\
          mem_thread_states,mem_block_links,mem_misc,\
-         mem_jemalloc,mem_unaccounted"
+         mem_jemalloc,mem_unaccounted,\
+         cum_sigbus_count,cum_smc_count,cum_float_fallback_count,\
+         cum_cache_miss_count,cum_jit_count"
     )
     .context("failed to write CSV header")
 }
@@ -802,7 +838,7 @@ fn write_csv_row(
 ) -> Result<()> {
     writeln!(
         out,
-        "{index},{},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{},{},{},{},{}",
+        "{index},{},{},{},{},{},{},{},{},{},{},{},{},{},{:.4},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
         f.timestamp_ns,
         f.sample_period_ns,
         f.threads_sampled,
@@ -829,6 +865,11 @@ fn write_csv_row(
         f.mem.misc,
         f.mem.jemalloc,
         f.mem.unaccounted,
+        f.cumulative.sigbus,
+        f.cumulative.smc,
+        f.cumulative.float_fallback,
+        f.cumulative.cache_miss,
+        f.cumulative.jit,
     )
     .context("failed to write CSV row")
 }

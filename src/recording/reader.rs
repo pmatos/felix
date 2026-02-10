@@ -8,12 +8,14 @@ use anyhow::{Context, Result, bail};
 
 use super::format::{EOF_MARKER, FORMAT_VERSION, MAGIC};
 use crate::datasource::{DataSource, SessionMetadata};
-use crate::recording::format::{FileHeader, Frame};
+use crate::recording::format::{FileHeader, Frame, LegacyFrame};
 use crate::sampler::accumulator::ComputedFrame;
 
 pub struct RecordingReader {
     metadata: SessionMetadata,
     frames: Vec<Frame>,
+    #[allow(dead_code)]
+    format_version: u8,
 }
 
 impl RecordingReader {
@@ -35,18 +37,17 @@ impl RecordingReader {
         if header.magic != MAGIC {
             bail!("invalid magic bytes in recording file");
         }
-        if header.format_version != FORMAT_VERSION {
-            bail!(
-                "unsupported format version {} (expected {FORMAT_VERSION})",
-                header.format_version
-            );
+        let version = header.format_version;
+        if version != 1 && version != FORMAT_VERSION {
+            bail!("unsupported format version {version} (expected 1 or {FORMAT_VERSION})",);
         }
 
-        let frames = Self::read_all_frames(&mut decoder)?;
+        let frames = Self::read_all_frames(&mut decoder, version)?;
 
         Ok(Self {
             metadata: header.metadata,
             frames,
+            format_version: version,
         })
     }
 
@@ -80,7 +81,7 @@ impl RecordingReader {
         postcard::from_bytes(&data).context("failed to deserialize file header")
     }
 
-    fn read_all_frames(reader: &mut impl Read) -> Result<Vec<Frame>> {
+    fn read_all_frames(reader: &mut impl Read, version: u8) -> Result<Vec<Frame>> {
         let mut frames = Vec::new();
         let mut len_buf = [0u8; 4];
 
@@ -101,8 +102,13 @@ impl RecordingReader {
                 .read_exact(&mut data)
                 .context("failed to read frame data")?;
 
-            let frame: Frame =
-                postcard::from_bytes(&data).context("failed to deserialize frame")?;
+            let frame = if version == 1 {
+                let legacy: LegacyFrame =
+                    postcard::from_bytes(&data).context("failed to deserialize v1 frame")?;
+                Frame::from(legacy)
+            } else {
+                postcard::from_bytes(&data).context("failed to deserialize frame")?
+            };
             frames.push(frame);
         }
 

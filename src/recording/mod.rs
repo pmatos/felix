@@ -13,7 +13,9 @@ mod tests {
     use crate::recording::format::Frame;
     use crate::recording::reader::RecordingReader;
     use crate::recording::writer::RecordingWriter;
-    use crate::sampler::accumulator::{ComputedFrame, HistogramEntry, ThreadLoad};
+    use crate::sampler::accumulator::{
+        ComputedFrame, CumulativeCountStats, HistogramEntry, ThreadLoad,
+    };
     use crate::sampler::thread_stats::ThreadDelta;
 
     fn make_metadata() -> SessionMetadata {
@@ -66,6 +68,13 @@ mod tests {
                     high_invalidation_or_smc: false,
                     high_sigbus: false,
                     high_softfloat: false,
+                },
+                cumulative: CumulativeCountStats {
+                    sigbus: 1000 + index,
+                    smc: 2000 + index,
+                    float_fallback: 3000 + index,
+                    cache_miss: 4000 + index,
+                    jit: 5000 + index,
                 },
             },
             per_thread_deltas: vec![
@@ -154,6 +163,27 @@ mod tests {
             assert!(
                 (actual.computed.fex_load_percent - expected.computed.fex_load_percent).abs()
                     < f64::EPSILON
+            );
+
+            assert_eq!(
+                actual.computed.cumulative.sigbus,
+                expected.computed.cumulative.sigbus
+            );
+            assert_eq!(
+                actual.computed.cumulative.smc,
+                expected.computed.cumulative.smc
+            );
+            assert_eq!(
+                actual.computed.cumulative.float_fallback,
+                expected.computed.cumulative.float_fallback
+            );
+            assert_eq!(
+                actual.computed.cumulative.cache_miss,
+                expected.computed.cumulative.cache_miss
+            );
+            assert_eq!(
+                actual.computed.cumulative.jit,
+                expected.computed.cumulative.jit
             );
 
             assert_eq!(
